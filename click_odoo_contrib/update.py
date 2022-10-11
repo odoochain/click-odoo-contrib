@@ -14,10 +14,11 @@ import click
 import click_odoo
 import psycopg2
 from click_odoo import OdooEnvironment, odoo
+from manifestoo_core.core_addons import get_core_addons
+from manifestoo_core.odoo_series import OdooSeries
 
 from ._addon_hash import addon_hash
 from ._dbutils import advisory_lock
-from .core_addons import core_addons
 
 _logger = logging.getLogger(__name__)
 
@@ -80,10 +81,7 @@ class DbLockWatcher(threading.Thread):
         """
         # See https://stackoverflow.com/a/35319598/1468388
         terminate_session = "SELECT pg_terminate_backend(%s)"
-        if odoo.release.version_info < (9, 0):
-            params = {"dsn": odoo.sql_db.dsn(self.database)[1]}
-        else:
-            params = odoo.sql_db.connection_info_for(self.database)[1]
+        params = odoo.sql_db.connection_info_for(self.database)[1]
         # Need a separate raw psycopg2 cursor without transactioning to avoid
         # weird concurrency errors; this cursor will only trigger SELECTs, and
         # it needs to access current Postgres server status, monitoring other
@@ -178,7 +176,12 @@ def _get_checksum_dir(cr, module_name):
 
 def _is_installable(module_name):
     try:
-        manifest = odoo.modules.load_information_from_description_file(module_name)
+        if odoo.tools.parse_version(odoo.release.version) <= odoo.tools.parse_version(
+            "15"
+        ):
+            manifest = odoo.modules.load_information_from_description_file(module_name)
+        else:
+            manifest = odoo.modules.get_manifest(module_name)
         return manifest["installable"]
     except Exception:
         # load_information_from_description_file populates default value
@@ -274,7 +277,7 @@ def OdooEnvironmentWithUpdate(database, ctx, **kwargs):
     if ctx.params["ignore_addons"]:
         ignore_addons.update(ctx.params["ignore_addons"].strip().split(","))
     if ctx.params["ignore_core_addons"]:
-        ignore_addons.update(core_addons[odoo.release.series])
+        ignore_addons.update(get_core_addons(OdooSeries(odoo.release.series)))
     if ignore_addons and ctx.params["update_all"]:
         raise click.ClickException(
             "--update-all and --ignore(-core)-addons cannot be used together"
