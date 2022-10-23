@@ -176,9 +176,7 @@ def _get_checksum_dir(cr, module_name):
 
 def _is_installable(module_name):
     try:
-        if odoo.tools.parse_version(odoo.release.version) <= odoo.tools.parse_version(
-            "15"
-        ):
+        if odoo.release.version_info < (16, 0):
             manifest = odoo.modules.load_information_from_description_file(module_name)
         else:
             manifest = odoo.modules.get_manifest(module_name)
@@ -229,11 +227,7 @@ def _update_db_nolock(
         return
     if i18n_overwrite:
         odoo.tools.config["overwrite_existing_translations"] = True
-    if odoo.tools.parse_version(odoo.release.version) < odoo.tools.parse_version("10"):
-        Registry = odoo.modules.registry.RegistryManager
-    else:
-        Registry = odoo.modules.registry.Registry
-    Registry.new(database, update_module=True)
+    odoo.modules.registry.Registry.new(database, update_module=True)
     if watcher and watcher.aborted:
         # If you get here, the updating session has been terminated and it
         # somehow has recovered by opening a new cursor and continuing;
